@@ -18,8 +18,8 @@ import se.oru.coordination.coordination_oru.util.BrowserVisualization;
 import se.oru.coordination.coordination_oru.util.JTSDrawingPanelVisualization;
 import se.oru.coordination.coordination_oru.util.Missions;
 
-@DemoDescription(desc = "One-shot navigation of 8 robots coordinating on static paths that overlap in a straight portion.")
-public class ThreeRobotsOneSided {
+@DemoDescription(desc = "One-shot navigation of several pedestrians and a robot coordinating on static paths that overlap in a straight portion.")
+public class MultiplePedestriansAndRobot {
 
 	public static void main(String[] args) throws InterruptedException {
 
@@ -72,7 +72,7 @@ public class ThreeRobotsOneSided {
 		int nums[] = {114, 115, 147, 148, 32, 33, 58, 80, 8, 99};
 
 
-		for(int i = 0; i < 8; i++) {
+		for(int i = 0; i < nums.length; i++) {
 			tec.setForwardModel(i, new ConstantAccelerationForwardModel(MAX_ACCEL, MAX_VEL, tec.getTrackingPeriod(), tec.getTemporalResolution()));
 			
 			PoseSteering[] path1 = Missions.loadPathFromFile(filename_prefix + Integer.toString(nums[i]) + ".txt");
