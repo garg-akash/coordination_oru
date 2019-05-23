@@ -131,7 +131,26 @@ public abstract class TrajectoryEnvelopeCoordinator {
 	protected AbstractMotionPlanner defaultMotionPlanner = null;
 	protected HashMap<Integer,AbstractMotionPlanner> motionPlanners = new HashMap<Integer, AbstractMotionPlanner>();
 	protected HashSet<HashSet<Integer>> replanningSpawned = new HashSet<HashSet<Integer>>();
+	
+	protected HashSet<Integer> uncontrollableRobots = new HashSet<Integer>();
 
+	
+	public void addUncontrollableRobots(int ... robotIDs) {
+		for (int i : robotIDs) this.uncontrollableRobots.add(i);
+	}
+	
+	public void removeUncontrollableRobots(int ... robotIDs) {
+		for (int i : robotIDs) this.uncontrollableRobots.remove(i);
+	}
+	
+	public void resetUncontrollableRobots() {
+		this.uncontrollableRobots.clear();
+	}
+	
+	public boolean isUncontrollable(int robotID) {
+		return this.uncontrollableRobots.contains(robotID);
+	}
+	
 	/**
 	 * Set whether a collision checking thread should be started. This is useful for
 	 * debugging and verifying that the fleet behaves properly. By default, collision checking is not performed.
@@ -1163,6 +1182,11 @@ public abstract class TrajectoryEnvelopeCoordinator {
 
 			ArrayList<CriticalSection> toRemove = new ArrayList<CriticalSection>();
 			for (CriticalSection cs : allCriticalSections) {
+				
+				if (this.uncontrollableRobots.contains(cs.getTe1().getRobotID()) && this.uncontrollableRobots.contains(cs.getTe2().getRobotID())) {
+					System.out.println("SKIPPING " + cs);
+					continue;
+				}
 
 				//Will be assigned depending on current situation of robot reports...
 				int waitingRobotID = -1;
