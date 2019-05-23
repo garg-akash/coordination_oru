@@ -1,5 +1,6 @@
 package se.oru.coordination.coordination_oru.tests.icaps2018.talk;
 
+import java.io.File;
 import java.util.Comparator;
 import java.util.Vector;
 
@@ -40,10 +41,12 @@ public class MultiplePedestriansAndRobot {
 		//				return ((cs.getTe1Start()-robotReport1.getPathIndex())-(cs.getTe2Start()-robotReport2.getPathIndex()));
 		//			}
 		//		});
+		
 		tec.addComparator(new Comparator<RobotAtCriticalSection> () {
 			@Override
 			public int compare(RobotAtCriticalSection o1, RobotAtCriticalSection o2) {
-				return (o1.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID()-o2.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID());
+				if (tec.isUncontrollable(o1.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID())) return -1;
+				return 1;
 			}
 		});
 
@@ -71,13 +74,16 @@ public class MultiplePedestriansAndRobot {
 		String filename_prefix = "paths_pedsim/person";
 		int nums[] = {114, 115, 147, 148, 32, 33, 58, 80, 8, 99};
 
-
 		for(int i = 0; i < nums.length; i++) {
-			tec.setForwardModel(i, new ConstantAccelerationForwardModel(MAX_ACCEL, MAX_VEL, tec.getTrackingPeriod(), tec.getTemporalResolution()));
+			
+			if (i != 2) tec.addUncontrollableRobots(nums[i]);
+			
+
+			tec.setForwardModel(nums[i], new ConstantAccelerationForwardModel(MAX_ACCEL, MAX_VEL, tec.getTrackingPeriod(), tec.getTemporalResolution()));
 			
 			PoseSteering[] path1 = Missions.loadPathFromFile(filename_prefix + Integer.toString(nums[i]) + ".txt");
-			tec.placeRobot(i, path1[0].getPose());
-			Mission m1 = new Mission(i,path1);
+			tec.placeRobot(nums[i], path1[0].getPose());
+			Mission m1 = new Mission(nums[i],path1);
 
 			//Place robots in their initial locations (looked up in the data file that was loaded above)
 			// -- creates a trajectory envelope for each location, representing the fact that the robot is parked
@@ -90,5 +96,7 @@ public class MultiplePedestriansAndRobot {
 
 			Thread.sleep(200);
 		}
+		
+		Missions.loadLocationAndPathData("paths_pedsim" + File.separator + "roadmap.txt");	
 	}
 }
