@@ -1111,8 +1111,10 @@ public abstract class TrajectoryEnvelopeCoordinator {
 			if (this.comparators.size() > 0) ret = (this.comparators.compare(r1atcs,r2atcs) < 0);
 			//No ordering function, decide an ordering based on distance (closest goes first)
 			else ret = ((cs.getTe2Start()-robotReport2.getPathIndex()) > (cs.getTe1Start()-robotReport1.getPathIndex()));
+			
 			if (ret && muted.contains(robotTracker2.getTrajectoryEnvelope().getRobotID())) return false;
 			if (!ret && muted.contains(robotTracker1.getTrajectoryEnvelope().getRobotID())) return true;
+			
 			return ret;
 		}
 		else if (!canStopRobot1) {
@@ -1183,10 +1185,7 @@ public abstract class TrajectoryEnvelopeCoordinator {
 			ArrayList<CriticalSection> toRemove = new ArrayList<CriticalSection>();
 			for (CriticalSection cs : allCriticalSections) {
 				
-				if (this.uncontrollableRobots.contains(cs.getTe1().getRobotID()) && this.uncontrollableRobots.contains(cs.getTe2().getRobotID())) {
-					System.out.println("SKIPPING " + cs);
-					continue;
-				}
+				if (this.isUncontrollable(cs.getTe1().getRobotID()) && this.isUncontrollable(cs.getTe2().getRobotID())) continue;
 
 				//Will be assigned depending on current situation of robot reports...
 				int waitingRobotID = -1;
@@ -1264,7 +1263,8 @@ public abstract class TrajectoryEnvelopeCoordinator {
 					if (robotReport1.getPathIndex() < cs.getTe1Start() && robotReport2.getPathIndex() < cs.getTe2Start()) {
 
 						//If robot 1 has priority over robot 2
-						if (getOrder(robotTracker1, robotReport1, robotTracker2, robotReport2, cs)) {
+						if ( (getOrder(robotTracker1, robotReport1, robotTracker2, robotReport2, cs) && !this.isUncontrollable(robotTracker2.getTrajectoryEnvelope().getRobotID()))
+								|| this.isUncontrollable(robotTracker1.getTrajectoryEnvelope().getRobotID())) {
 							drivingCurrentIndex = robotReport1.getPathIndex();
 							waitingCurrentIndex = robotReport2.getPathIndex();
 							waitingTE = cs.getTe2();
