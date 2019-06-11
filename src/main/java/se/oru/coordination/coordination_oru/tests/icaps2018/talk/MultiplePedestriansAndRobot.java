@@ -32,21 +32,19 @@ public class MultiplePedestriansAndRobot {
 		// -- the getCurrentTimeInMillis() method, which is used by the coordinator to keep time
 		//You still need to add one or more comparators to determine robot orderings thru critical sections (comparators are evaluated in the order in which they are added)
 		final TrajectoryEnvelopeCoordinatorSimulation tec = new TrajectoryEnvelopeCoordinatorSimulation(MAX_VEL,MAX_ACCEL);
-		//		tec.addComparator(new Comparator<RobotAtCriticalSection> () {
-		//			@Override
-		//			public int compare(RobotAtCriticalSection o1, RobotAtCriticalSection o2) {
-		//				CriticalSection cs = o1.getCriticalSection();
-		//				RobotReport robotReport1 = o1.getTrajectoryEnvelopeTracker().getRobotReport();
-		//				RobotReport robotReport2 = o2.getTrajectoryEnvelopeTracker().getRobotReport();
-		//				return ((cs.getTe1Start()-robotReport1.getPathIndex())-(cs.getTe2Start()-robotReport2.getPathIndex()));
-		//			}
-		//		});
-		
 		tec.addComparator(new Comparator<RobotAtCriticalSection> () {
 			@Override
 			public int compare(RobotAtCriticalSection o1, RobotAtCriticalSection o2) {
-				if (tec.isUncontrollable(o1.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID())) return -1;
-				return 1;
+				CriticalSection cs = o1.getCriticalSection();
+				RobotReport robotReport1 = o1.getTrajectoryEnvelopeTracker().getRobotReport();
+				RobotReport robotReport2 = o2.getTrajectoryEnvelopeTracker().getRobotReport();
+				return ((cs.getTe1Start()-robotReport1.getPathIndex())-(cs.getTe2Start()-robotReport2.getPathIndex()));
+			}
+		});
+		tec.addComparator(new Comparator<RobotAtCriticalSection> () {
+			@Override
+			public int compare(RobotAtCriticalSection o1, RobotAtCriticalSection o2) {
+				return (o2.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID()-o1.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID());
 			}
 		});
 
@@ -72,11 +70,11 @@ public class MultiplePedestriansAndRobot {
 		//MetaCSPLogging.setLevel(tec.getClass().getSuperclass(), Level.FINEST);
 
 		String filename_prefix = "paths_pedsim/person";
-		int nums[] = {114, 115, 147, 148, 32, 33, 58, 80, 8, 99};
+		int nums[] = {8, 32, 147, 148, 115, 33, 58, 80, 114, 99};
 
 		for(int i = 0; i < nums.length; i++) {
 			
-			if (i != 2) tec.addUncontrollableRobots(nums[i]);
+			if (i != 1 && i != 3) tec.addUncontrollableRobots(nums[i]);
 			
 
 			tec.setForwardModel(nums[i], new ConstantAccelerationForwardModel(MAX_ACCEL, MAX_VEL, tec.getTrackingPeriod(), tec.getTemporalResolution()));

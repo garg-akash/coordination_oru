@@ -1058,6 +1058,9 @@ public abstract class TrajectoryEnvelopeCoordinator {
 	//returns true if robot1 should go before robot2
 	//returns false if robot2 should go before robot1
 	private boolean getOrder(AbstractTrajectoryEnvelopeTracker robotTracker1, RobotReport robotReport1, AbstractTrajectoryEnvelopeTracker robotTracker2, RobotReport robotReport2, CriticalSection cs) {
+		
+		if(this.isUncontrollable(robotTracker1.getTrajectoryEnvelope().getRobotID())) return true;
+		if(this.isUncontrollable(robotTracker2.getTrajectoryEnvelope().getRobotID())) return false;
 
 		synchronized (disallowedDependencies) {
 			for (Dependency dep : disallowedDependencies) {
@@ -1184,8 +1187,6 @@ public abstract class TrajectoryEnvelopeCoordinator {
 
 			ArrayList<CriticalSection> toRemove = new ArrayList<CriticalSection>();
 			for (CriticalSection cs : allCriticalSections) {
-				
-				if (this.isUncontrollable(cs.getTe1().getRobotID()) && this.isUncontrollable(cs.getTe2().getRobotID())) continue;
 
 				//Will be assigned depending on current situation of robot reports...
 				int waitingRobotID = -1;
@@ -1203,7 +1204,8 @@ public abstract class TrajectoryEnvelopeCoordinator {
 				RobotReport robotReport2 = robotTracker2.getRobotReport();
 
 				//One or both robots past end of the critical section --> critical section is obsolete
-				if (robotReport1.getPathIndex() > cs.getTe1End() || robotReport2.getPathIndex() > cs.getTe2End()) {
+				if (robotReport1.getPathIndex() > cs.getTe1End() || robotReport2.getPathIndex() > cs.getTe2End() || 
+						(this.isUncontrollable(cs.getTe1().getRobotID()) && this.isUncontrollable(cs.getTe2().getRobotID()))) {
 					toRemove.add(cs);
 					metaCSPLogger.finest("Obsolete critical section\n\t" + cs);
 					continue;
@@ -1263,8 +1265,7 @@ public abstract class TrajectoryEnvelopeCoordinator {
 					if (robotReport1.getPathIndex() < cs.getTe1Start() && robotReport2.getPathIndex() < cs.getTe2Start()) {
 
 						//If robot 1 has priority over robot 2
-						if ( (getOrder(robotTracker1, robotReport1, robotTracker2, robotReport2, cs) && !this.isUncontrollable(robotTracker2.getTrajectoryEnvelope().getRobotID()))
-								|| this.isUncontrollable(robotTracker1.getTrajectoryEnvelope().getRobotID())) {
+						if (getOrder(robotTracker1, robotReport1, robotTracker2, robotReport2, cs)) {
 							drivingCurrentIndex = robotReport1.getPathIndex();
 							waitingCurrentIndex = robotReport2.getPathIndex();
 							waitingTE = cs.getTe2();
