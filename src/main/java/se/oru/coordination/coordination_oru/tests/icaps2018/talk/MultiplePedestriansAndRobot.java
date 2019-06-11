@@ -18,6 +18,7 @@ import se.oru.coordination.coordination_oru.simulation2D.TrajectoryEnvelopeCoord
 import se.oru.coordination.coordination_oru.util.BrowserVisualization;
 import se.oru.coordination.coordination_oru.util.JTSDrawingPanelVisualization;
 import se.oru.coordination.coordination_oru.util.Missions;
+import se.oru.coordination.coordination_oru.util.RVizVisualization;
 
 @DemoDescription(desc = "One-shot navigation of several pedestrians and a robot coordinating on static paths that overlap in a straight portion.")
 public class MultiplePedestriansAndRobot {
@@ -48,35 +49,41 @@ public class MultiplePedestriansAndRobot {
 			}
 		});
 
-		//You probably also want to provide a non-trivial forward model
-		//(the default assumes that robots can always stop)
-
+		String filename_prefix = "paths_pedsim/person";
+		int nums[] = {8, 32, 147, 148, 115, 33, 58, 80, 114, 99};
+		
+		// Pedestrian Footprints
 		Coordinate footprint1 = new Coordinate(-0.1,0.1);
 		Coordinate footprint2 = new Coordinate(0.1,0.1);
 		Coordinate footprint3 = new Coordinate(0.1,-0.1);
 		Coordinate footprint4 = new Coordinate(-0.1,-0.1);
-		tec.setDefaultFootprint(footprint1, footprint2, footprint3, footprint4);
+		
+		// Robot Footprints
+		Coordinate f1 = new Coordinate(0.3, 0.3);
+		Coordinate f2 = new Coordinate(0.3, -0.3);
+		Coordinate f3 = new Coordinate(-0.3, -0.3);
+		Coordinate f4 = new Coordinate(-0.3, 0.3);
 
 		//Need to setup infrastructure that maintains the representation
 		tec.setupSolver(0, 100000000);
 
-		JTSDrawingPanelVisualization viz = new JTSDrawingPanelVisualization();
+		//JTSDrawingPanelVisualization viz = new JTSDrawingPanelVisualization();
+		RVizVisualization viz = new RVizVisualization();
+		RVizVisualization.writeRVizConfigFile(nums);
 		//BrowserVisualization viz = new BrowserVisualization();
 		//viz.setInitialTransform(39, -1.8, 1.4);
 		tec.setVisualization(viz);
-
+		
 		tec.setUseInternalCriticalPoints(false);
-
-		//MetaCSPLogging.setLevel(tec.getClass().getSuperclass(), Level.FINEST);
-
-		String filename_prefix = "paths_pedsim/person";
-		int nums[] = {8, 32, 147, 148, 115, 33, 58, 80, 114, 99};
 
 		for(int i = 0; i < nums.length; i++) {
 			
-			if (i != 1 && i != 3) tec.addUncontrollableRobots(nums[i]);
+			if (i != 1 && i != 3) {
+				tec.setFootprint(nums[i], footprint1, footprint2, footprint3, footprint4);
+				tec.addUncontrollableRobots(nums[i]);				
+			}
+			else tec.setFootprint(nums[i], f1, f2, f3, f4);
 			
-
 			tec.setForwardModel(nums[i], new ConstantAccelerationForwardModel(MAX_ACCEL, MAX_VEL, tec.getTrackingPeriod(), tec.getTemporalResolution()));
 			
 			PoseSteering[] path1 = Missions.loadPathFromFile(filename_prefix + Integer.toString(nums[i]) + ".txt");
