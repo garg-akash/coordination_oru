@@ -1,5 +1,7 @@
 package se.oru.coordination.coordination_oru;
 
+import java.util.ArrayList;
+
 import org.metacsp.multi.allenInterval.AllenIntervalConstraint;
 import org.metacsp.multi.spatioTemporal.paths.TrajectoryEnvelope;
 import org.metacsp.multi.spatioTemporal.paths.TrajectoryEnvelopeSolver;
@@ -127,7 +129,8 @@ public abstract class TrajectoryEnvelopeTrackerDummy extends AbstractTrajectoryE
 	
 	@Override
 	public void onPositionUpdate() {
-		if (tec.getVisualization() != null) tec.getVisualization().displayRobotState(te, getRobotReport());
+		String extraRobotState = tec.isUncontrollable(this.getRobotReport().getRobotID()) ? "uncontrollable" : "controllable";		
+		if (tec.getVisualization() != null) tec.getVisualization().displayRobotState(te, getRobotReport(), extraRobotState);
 	}
 
 	

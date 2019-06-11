@@ -1,6 +1,7 @@
 package se.oru.coordination.coordination_oru;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.logging.Logger;
@@ -166,14 +167,23 @@ public abstract class AbstractTrajectoryEnvelopeTracker {
 
 	protected void onPositionUpdate() {
 	
-		String[] extraRobotState = null;
+		// Create an ArrayList. 
+		ArrayList<String> extraRobotStateList = new ArrayList<String>();
+		
+		// Add the type of the robot: uncontrollable or not.
+		extraRobotStateList.add(tec.isUncontrollable(this.getRobotReport().getRobotID()) ? "uncontrollable" : "controllable");
+		
 		if (cb != null) {
-			extraRobotState = cb.onPositionUpdate();
+			String[] extraRobotStateStrings = cb.onPositionUpdate();
+			// Add the strings returned by onPositionUpdate()
+			if(extraRobotStateStrings != null)
+			    extraRobotStateList.addAll(Arrays.asList(extraRobotStateStrings));
 		}
 
 		if (tec.getVisualization() != null) {
 			//Update the position of the robot in the GUI
 			RobotReport rr = getRobotReport();
+			String[] extraRobotState = extraRobotStateList.toArray(new String[extraRobotStateList.size()]);
 			tec.getVisualization().displayRobotState(te, rr, extraRobotState);
 			
 			//Draw an arrow if there is a critical point

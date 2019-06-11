@@ -48,13 +48,29 @@ public class JTSDrawingPanelVisualization implements FleetVisualization {
 		double y = rr.getPose().getY();
 		double theta = rr.getPose().getTheta();
 		String name = "R"+te.getRobotID();
+		boolean isUncontrollable = false;
+		
 		if (extraStatusInfo != null) {
 			for (String st : extraStatusInfo) {
-				name += ("\\"+st);
+				if(st.equals("uncontrollable")) {
+					isUncontrollable = true;
+					continue;
+				}
+				else if(st.equals("controllable")) {
+					isUncontrollable = false;
+					continue;
+				}
+				else name += ("\\"+st);
 			}
 		}
-		if (rr.getPathIndex() != -1) panel.addGeometry(name, TrajectoryEnvelope.getFootprint(te.getFootprint(), x, y, theta), false, true, false, "#FF0000");
-		else panel.addGeometry(name, TrajectoryEnvelope.getFootprint(te.getFootprint(), te.getTrajectory().getPose()[0].getX(), te.getTrajectory().getPose()[0].getY(), te.getTrajectory().getPose()[0].getTheta()), false, true, false, "#4286F4");
+		if(isUncontrollable) {
+			if (rr.getPathIndex() != -1) panel.addGeometry(name, TrajectoryEnvelope.getFootprint(te.getFootprint(), x, y, theta), false, true, false, "#B300B3");
+			else panel.addGeometry(name, TrajectoryEnvelope.getFootprint(te.getFootprint(), te.getTrajectory().getPose()[0].getX(), te.getTrajectory().getPose()[0].getY(), te.getTrajectory().getPose()[0].getTheta()), false, true, false, "#999920");
+		}
+		else {
+			if (rr.getPathIndex() != -1) panel.addGeometry(name, TrajectoryEnvelope.getFootprint(te.getFootprint(), x, y, theta), false, true, false, "#209920");
+			else panel.addGeometry(name, TrajectoryEnvelope.getFootprint(te.getFootprint(), te.getTrajectory().getPose()[0].getX(), te.getTrajectory().getPose()[0].getY(), te.getTrajectory().getPose()[0].getTheta()), false, true, false, "#202099");
+		}
 	}
 
 	@Override

@@ -106,7 +106,7 @@ public class RVizVisualization implements FleetVisualization, NodeMain {
             }
 			
 			//Read post
-			is = loader.getResourceAsStream("coordinator_default_config_pre.rviz");
+			is = loader.getResourceAsStream("coordinator_default_config_post.rviz");
 			br = new BufferedReader(new InputStreamReader(is));
 			oneLine = null;
 			while ((oneLine = br.readLine()) != null) {
@@ -267,13 +267,33 @@ public class RVizVisualization implements FleetVisualization, NodeMain {
 			double x = rr.getPose().getX();
 			double y = rr.getPose().getY();
 			double theta = rr.getPose().getTheta();
+			
+			float[] controllableColor = {250.0f, 90.0f, 250.0f};
+			float[] unControllableColor = {64.0f, 240.0f, 64.0f};
+			boolean isUncontrollable = false;
+			if(extraStatusInfo != null) {
+				for(String s : extraStatusInfo) {
+					if(s.contains("uncontrollable")) {
+						isUncontrollable = true;
+					}
+				}
+			}
 
 			visualization_msgs.Marker marker = node.getTopicMessageFactory().newFromType(visualization_msgs.Marker._TYPE);
 			marker.getHeader().setFrameId(mapFrameID);
 			marker.getScale().setX(0.2f);
-			marker.getColor().setR(100f);
-			marker.getColor().setG(0.0f);
-			marker.getColor().setB(0.0f);
+			
+			if(isUncontrollable) {
+				marker.getColor().setR(unControllableColor[0]);
+				marker.getColor().setG(unControllableColor[1]);
+				marker.getColor().setB(unControllableColor[2]);
+			}
+			else {
+				marker.getColor().setR(controllableColor[0]);
+				marker.getColor().setG(controllableColor[1]);
+				marker.getColor().setB(controllableColor[2]);
+			}
+			
 			marker.getColor().setA(0.8f);
 			marker.setAction(visualization_msgs.Marker.ADD);                                
 			marker.setNs("current_pose");
@@ -319,7 +339,14 @@ public class RVizVisualization implements FleetVisualization, NodeMain {
 			//markerName.setId(te.getRobotID());
 			markerName.setLifetime(new Duration(10.0));
 			String markerText  = "R" + te.getRobotID() + ": " + rr.getPathIndex();
-			if (extraStatusInfo != null) for (String extra : extraStatusInfo) markerText += "\n" + extra;
+			if (extraStatusInfo != null) {
+				for (String extra : extraStatusInfo) {
+					if(extra.contains("uncontrollable") || extra.contains("controllable")) {
+						continue;
+					}
+					markerText += "\n" + extra;
+				}
+			}
 			markerName.setText(markerText);
 			geometry_msgs.Pose pose = node.getTopicMessageFactory().newFromType(geometry_msgs.Pose._TYPE);
 			geometry_msgs.Point pos = node.getTopicMessageFactory().newFromType(geometry_msgs.Point._TYPE);
