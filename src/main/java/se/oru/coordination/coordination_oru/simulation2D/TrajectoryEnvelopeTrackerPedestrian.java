@@ -52,6 +52,8 @@ public class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajectoryEnvel
 		}
 		catch (FileNotFoundException e) { e.printStackTrace(); }
 		
+		// FIX return proper trajectory.
+		return new Trajectory();
 	}
 
 	public TrajectoryEnvelopeTrackerPedestrian(TrajectoryEnvelope te, double temporalResolution, TrajectoryEnvelopeCoordinator tec,
