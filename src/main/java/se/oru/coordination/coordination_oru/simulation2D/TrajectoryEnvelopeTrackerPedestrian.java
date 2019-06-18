@@ -12,7 +12,6 @@ import java.util.Scanner;
 import java.util.TreeMap;
 
 import org.metacsp.multi.spatioTemporal.paths.Pose;
-import org.metacsp.multi.spatioTemporal.paths.PoseSteering;
 import org.metacsp.multi.spatioTemporal.paths.Trajectory;
 import org.metacsp.multi.spatioTemporal.paths.TrajectoryEnvelope;
 
@@ -20,16 +19,26 @@ import se.oru.coordination.coordination_oru.AbstractTrajectoryEnvelopeTracker;
 import se.oru.coordination.coordination_oru.RobotReport;
 import se.oru.coordination.coordination_oru.TrackingCallback;
 import se.oru.coordination.coordination_oru.TrajectoryEnvelopeCoordinator;
+import se.oru.coordination.coordination_oru.util.ColorPrint;
 
 public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajectoryEnvelopeTracker implements Runnable {
 
 	protected static final long WAIT_AMOUNT_AT_END = 3000;
 	protected static final double EPSILON = 0.01;
+	
 	protected double overallDistance = 0.0;
 	protected double totalDistance = 0.0;
+	
 	protected double elapsedTrackingTime = 0.0;
+	protected double stoppageTime = 0.0;
+	protected Pose currentPose;
+	
+	protected ArrayList<Pose> pedestrianPoses = null;
+	protected ArrayList<Double> pedestrianSpeeds = null;
+	protected ArrayList<Double> pedestrianTimeStamps = null;
+	protected ArrayList<Double> pedestrianDTs = null;
+	
 	private Thread th = null;
-	protected State state = null;
 	private int maxDelayInMilis = 0;
 	private Random rand = new Random();
 	
@@ -38,34 +47,47 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 	 * @param fileName The name of the file containing the pedestrian path
 	 * @return The pedestrian path read from the file
 	 */
-	public static Trajectory loadPedestrianTrajectoryFromFile(String fileName) {
-		ArrayList<PoseSteering> ret = new ArrayList<PoseSteering>();
+	private void loadPedestrianTrajectoryFromFile(String fileName) {
+		this.pedestrianPoses = new ArrayList<Pose>();
+		this.pedestrianSpeeds = new ArrayList<Double>();
+		this.pedestrianTimeStamps = new ArrayList<Double>();
+		this.pedestrianDTs = new ArrayList<Double>();
 		try {
 			Scanner in = new Scanner(new FileReader(fileName));
 			while (in.hasNextLine()) {
 				String line = in.nextLine().trim();
-				if (line.length() != 0) {
+				if(line.length() == 5) {
 					String[] oneline = line.split(" |\t");
-					PoseSteering ps = null;
-					ps = new PoseSteering(
-					     new Double(oneline[0]).doubleValue(),
-						 new Double(oneline[1]).doubleValue(),
-						 new Double(oneline[2]).doubleValue(),
-						 0.0);					
-					}
-					ret.add(ps);
+					pedestrianPoses.add(new Pose(
+							new Double(oneline[0]).doubleValue(),
+							new Double(oneline[1]).doubleValue(),
+							new Double(oneline[2]).doubleValue()));
+					pedestrianSpeeds.add(new Double(oneline[3]).doubleValue());
+					pedestrianTimeStamps.add(new Double(oneline[4]).doubleValue());
+				}
+				else {
+					ColorPrint.error("Error reading a line from " + fileName + ". Line did not contain 5 elements. Skipping line.");
+					continue;
+				}
+
 			}
 			in.close();
 		}
 		catch (FileNotFoundException e) { e.printStackTrace(); }
-		
-		// FIX return proper trajectory.
-		return new Trajectory();
+
+		// Compute deltaTs for the Trajectory.
+		this.pedestrianDTs = new ArrayList<Double>();
+		for(int i = 0; i < this.pedestrianTimeStamps.size() - 1; i++) {
+			this.pedestrianDTs.add(new Double(this.pedestrianTimeStamps.get(i+1).doubleValue() - pedestrianTimeStamps.get(i).doubleValue()));
+		}
+		pedestrianDTs.add(new Double(0.0));
+
 	}
 	
-	public TrajectoryEnvelopeTrackerPedestrian(TrajectoryEnvelope te, int timeStep, double temporalResolution, TrajectoryEnvelopeCoordinator tec, TrackingCallback cb) {
+	public TrajectoryEnvelopeTrackerPedestrian(TrajectoryEnvelope te, int timeStep, double temporalResolution, TrajectoryEnvelopeCoordinator tec, TrackingCallback cb, String fileName) {
 		super(te, temporalResolution, tec, timeStep, cb);
-		this.state = new State(0.0, 0.0);
+		this.loadPedestrianTrajectoryFromFile(fileName);
+		this.currentPose = pedestrianPoses.get(0);
 		this.totalDistance = this.computeDistance(0, traj.getPose().length-1);
 		this.overallDistance = totalDistance;
 		this.th = new Thread(this, "Pedestrian tracker " + te.getComponent());
@@ -98,26 +120,10 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 	private double computeDistance(int startIndex, int endIndex) {
 		return computeDistance(this.traj, startIndex, endIndex);
 	}
-		
-	// TODO: Modify
-	public void integratePedestrianState(double deltaTime) {
-		synchronized(state) {
-			Derivative a = Derivative.evaluate(state, time, 0.0, new Derivative(), slowDown, MAX_VELOCITY, MAX_VELOCITY_DAMPENING_FACTOR, MAX_ACCELERATION);
-			Derivative b = Derivative.evaluate(state, time, deltaTime/2.0, a, slowDown, MAX_VELOCITY, MAX_VELOCITY_DAMPENING_FACTOR, MAX_ACCELERATION);
-			Derivative c = Derivative.evaluate(state, time, deltaTime/2.0, b, slowDown, MAX_VELOCITY, MAX_VELOCITY_DAMPENING_FACTOR,MAX_ACCELERATION);
-			Derivative d = Derivative.evaluate(state, time, deltaTime, c, slowDown, MAX_VELOCITY, MAX_VELOCITY_DAMPENING_FACTOR, MAX_ACCELERATION);
-	
-			double dxdt = (1.0f / 6.0f) * ( a.getVelocity() + 2.0f*(b.getVelocity() + c.getVelocity()) + d.getVelocity() ); 
-		    double dvdt = (1.0f / 6.0f) * ( a.getAcceleration() + 2.0f*(b.getAcceleration() + c.getAcceleration()) + d.getAcceleration() );
-			
-		    state.setPosition(state.getPosition()+dxdt*deltaTime);
-		    state.setVelocity(state.getVelocity()+dvdt*deltaTime);
-		}
-	}
 			
 	@Override
 	public void setCriticalPoint(int criticalPointToSet) {
-		
+		ColorPrint.info("Setting critical point for Pedestrian...");
 		if (this.criticalPoint != criticalPointToSet) {
 			
 			//A new intermediate index to stop at has been given
@@ -127,7 +133,6 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 				int criticalPointBKP = this.criticalPoint;
 	
 				this.criticalPoint = criticalPointToSet;
-				//TOTDIST: ---(state.getPosition)--->x--(computeDist)--->CP
 				this.totalDistance = computeDistance(0, criticalPointToSet);
 			}
 
@@ -153,7 +158,7 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 	
 	@Override
 	public RobotReport getRobotReport() {
-		if (state == null) return null;
+		if (this.currentPose == null) return null;
 		if (!this.th.isAlive()) return new RobotReport(te.getRobotID(), traj.getPose()[0], -1, 0.0, 0.0, -1);
 		synchronized(state) {
 			Pose pose = null;
@@ -180,6 +185,13 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 
 	public void delayIntegrationThread(int maxDelayInmillis) {
 		this.maxDelayInMilis = maxDelayInmillis;
+	}
+	
+	protected void updatePedestrianState() {
+		if(this.elapsedTrackingTime < this.pedestrianTimeStamps.get(0).doubleValue()) { return; }
+		
+		double timePassed = this.elapsedTrackingTime - this.stoppageTime;
+		
 	}
 	
 	@Override
@@ -220,8 +232,7 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 					metaCSPLogger.info("Resuming from critical point (" + te.getComponent() + ")");
 					atCP = false;
 				}
-				integratePedestrianState(deltaTime);
-
+				updatePedestrianState();
 			}
 			
 			//Do some user function on position update
@@ -236,7 +247,9 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 			//Advance time to reflect how much we have slept (~ trackingPeriod)
 			long deltaTimeInMillis = Calendar.getInstance().getTimeInMillis()-timeStart;
 			deltaTime = deltaTimeInMillis/this.temporalResolution;
-			elapsedTrackingTime += deltaTime;
+			this.elapsedTrackingTime += deltaTime;
+			// If we have skipped integration, add this to stoppage time.
+			if(skipIntegration)	this.stoppageTime += deltaTime;
 		}
 		
 		//persevere with last path point in case listeners didn't catch it!
@@ -248,58 +261,5 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 		}
 		metaCSPLogger.info("RK4 tracking thread terminates (Robot " + myRobotID + ", TrajectoryEnvelope " + myTEID + ")");
 	}
-
-//	public static double[] computeDTs(Trajectory traj, double maxVel, double maxAccel) {
-//		double distance = computeDistance(traj, 0, traj.getPose().length-1);
-//		State state = new State(0.0, 0.0);
-//		double time = 0.0;
-//		double deltaTime = 0.0001;
-//		
-//		ArrayList<Double> dts = new ArrayList<Double>();
-//		HashMap<Integer,Double> times = new HashMap<Integer, Double>();
-//		dts.add(0.0);
-//		times.put(0, 0.0);
-//		
-//		//First compute time to stop (can do FW here...)
-//		while (state.getPosition() < distance/2.0 && state.getVelocity() < maxVel) {
-//			integrateRK4(state, time, deltaTime, false, maxVel, 1.0, maxAccel);
-//			time += deltaTime;
-//		}
-//		double positionToSlowDown = distance-state.getPosition();
-//		//System.out.println("Position to slow down is: " + MetaCSPLogging.printDouble(positionToSlowDown,4));
-//
-//		state = new State(0.0, 0.0);
-//		time = 0.0;
-//		while (true) {
-//			if (state.getPosition() >= distance/2.0 && state.getVelocity() < 0.0) break;
-//			if (state.getPosition() >= positionToSlowDown) {
-//				integrateRK4(state, time, deltaTime, true, maxVel, 1.0, maxAccel);
-//			}
-//			else {
-//				integrateRK4(state, time, deltaTime, false, maxVel, 1.0, maxAccel);				
-//			}
-//			//System.out.println("Time: " + time + " " + rr);
-//			//System.out.println("Time: " + MetaCSPLogging.printDouble(time,4) + "\tpos: " + MetaCSPLogging.printDouble(state.getPosition(),4) + "\tvel: " + MetaCSPLogging.printDouble(state.getVelocity(),4));
-//			time += deltaTime;
-//			RobotReport rr = getRobotReport(traj, state);
-//			if (!times.containsKey(rr.getPathIndex())) {
-//				times.put(rr.getPathIndex(), time);
-//				dts.add(time-times.get(rr.getPathIndex()-1));
-//			}
-//		}
-//		if (dts.size() < traj.getPose().length) {
-//			times.put(traj.getPose().length-1, time);		
-//			dts.add(time-times.get(traj.getPose().length-2));
-//		}
-//		
-//		//System.out.println("Time: " + MetaCSPLogging.printDouble(time,4) + "\tpos: " + MetaCSPLogging.printDouble(state.getPosition(),4) + "\tvel: " + MetaCSPLogging.printDouble(state.getVelocity(),4));
-//		
-//		double[] ret = new double[dts.size()];
-//		for (int i = 0; i < dts.size(); i++) ret[i] = dts.get(i);
-//		return ret;
-//
-//	}
-
-	
 
 }
