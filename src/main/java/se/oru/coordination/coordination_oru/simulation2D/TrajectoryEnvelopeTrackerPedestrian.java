@@ -30,8 +30,9 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 	protected double totalDistance = 0.0;
 	
 	protected double elapsedTrackingTime = 0.0;
-	protected double stoppageTime = 0.0;
 	protected Pose currentPose;
+	protected double stoppageTime = 0.0;
+	protected double positionToStop = -1.0;
 	
 	protected ArrayList<Pose> pedestrianPoses = null;
 	protected ArrayList<Double> pedestrianSpeeds = null;
