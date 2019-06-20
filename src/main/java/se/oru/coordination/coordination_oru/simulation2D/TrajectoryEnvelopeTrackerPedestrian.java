@@ -265,7 +265,8 @@ public class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajectoryEnvel
 
 	@Override
 	public long getCurrentTimeInMillis() {
-		return Calendar.getInstance().getTimeInMillis();
+		return this.tec.getCurrentTimeInMillis();
+		//return Calendar.getInstance().getTimeInMillis();
 	}
 
 }
