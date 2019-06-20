@@ -4,12 +4,9 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map.Entry;
+import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
-import java.util.TreeMap;
 
 import org.metacsp.multi.spatioTemporal.paths.Pose;
 import org.metacsp.multi.spatioTemporal.paths.Trajectory;
@@ -19,9 +16,8 @@ import se.oru.coordination.coordination_oru.AbstractTrajectoryEnvelopeTracker;
 import se.oru.coordination.coordination_oru.RobotReport;
 import se.oru.coordination.coordination_oru.TrackingCallback;
 import se.oru.coordination.coordination_oru.TrajectoryEnvelopeCoordinator;
-import se.oru.coordination.coordination_oru.util.ColorPrint;
 
-public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajectoryEnvelopeTracker implements Runnable {
+public class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajectoryEnvelopeTracker implements Runnable {
 
 	protected static final long WAIT_AMOUNT_AT_END = 3000;
 	protected static final double EPSILON = 0.01;
@@ -30,67 +26,27 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 	protected double totalDistance = 0.0;
 	
 	protected double elapsedTrackingTime = 0.0;
+	
 	protected Pose currentPose;
+	protected int currentPathIndex = 0;
+	protected double currentSpeed;
+	
 	protected double stoppageTime = 0.0;
 	protected double positionToStop = -1.0;
 	
-	protected ArrayList<Pose> pedestrianPoses = null;
-	protected ArrayList<Double> pedestrianSpeeds = null;
-	protected ArrayList<Double> pedestrianTimeStamps = null;
-	protected ArrayList<Double> pedestrianDTs = null;
+	protected PedestrianTrajectory pedestrianTraj;
 	
 	private Thread th = null;
 	private int maxDelayInMilis = 0;
 	private Random rand = new Random();
 	
-	/**
-	 * Read a path from a file.
-	 * @param fileName The name of the file containing the pedestrian path
-	 * @return The pedestrian path read from the file
-	 */
-	private void loadPedestrianTrajectoryFromFile(String fileName) {
-		this.pedestrianPoses = new ArrayList<Pose>();
-		this.pedestrianSpeeds = new ArrayList<Double>();
-		this.pedestrianTimeStamps = new ArrayList<Double>();
-		this.pedestrianDTs = new ArrayList<Double>();
-		try {
-			Scanner in = new Scanner(new FileReader(fileName));
-			while (in.hasNextLine()) {
-				String line = in.nextLine().trim();
-				if(line.length() == 5) {
-					String[] oneline = line.split(" |\t");
-					pedestrianPoses.add(new Pose(
-							new Double(oneline[0]).doubleValue(),
-							new Double(oneline[1]).doubleValue(),
-							new Double(oneline[2]).doubleValue()));
-					pedestrianSpeeds.add(new Double(oneline[3]).doubleValue());
-					pedestrianTimeStamps.add(new Double(oneline[4]).doubleValue());
-				}
-				else {
-					ColorPrint.error("Error reading a line from " + fileName + ". Line did not contain 5 elements. Skipping line.");
-					continue;
-				}
-
-			}
-			in.close();
-		}
-		catch (FileNotFoundException e) { e.printStackTrace(); }
-
-		// Compute deltaTs for the Trajectory.
-		this.pedestrianDTs = new ArrayList<Double>();
-		for(int i = 0; i < this.pedestrianTimeStamps.size() - 1; i++) {
-			this.pedestrianDTs.add(new Double(this.pedestrianTimeStamps.get(i+1).doubleValue() - pedestrianTimeStamps.get(i).doubleValue()));
-		}
-		pedestrianDTs.add(new Double(0.0));
-
-	}
-	
-	public TrajectoryEnvelopeTrackerPedestrian(TrajectoryEnvelope te, int timeStep, double temporalResolution, TrajectoryEnvelopeCoordinator tec, TrackingCallback cb, String fileName) {
+	public TrajectoryEnvelopeTrackerPedestrian(TrajectoryEnvelope te, int timeStep, double temporalResolution, TrajectoryEnvelopeCoordinator tec, TrackingCallback cb, PedestrianTrajectory pedestrianTraj) {
 		super(te, temporalResolution, tec, timeStep, cb);
-		this.loadPedestrianTrajectoryFromFile(fileName);
-		this.currentPose = pedestrianPoses.get(0);
+		this.pedestrianTraj = pedestrianTraj;
+		this.currentPose = pedestrianTraj.getPoses().get(0);
 		this.totalDistance = this.computeDistance(0, traj.getPose().length-1);
 		this.overallDistance = totalDistance;
+		this.positionToStop = this.computeCurrentDistanceFromStart();
 		this.th = new Thread(this, "Pedestrian tracker " + te.getComponent());
 		this.th.setPriority(Thread.MAX_PRIORITY);
 	}
@@ -117,6 +73,14 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 		}
 		return ret;
 	}
+	
+	public double computeCurrentDistanceFromStart() {
+		double ret = 0.0;
+		for (int i = 0; i < currentPathIndex; i++) {
+			ret += traj.getPose()[i].distanceTo(traj.getPose()[i+1]);
+		}
+		return ret;
+	}
 
 	private double computeDistance(int startIndex, int endIndex) {
 		return computeDistance(this.traj, startIndex, endIndex);
@@ -124,7 +88,7 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 			
 	@Override
 	public void setCriticalPoint(int criticalPointToSet) {
-		ColorPrint.info("Setting critical point for Pedestrian...");
+		
 		if (this.criticalPoint != criticalPointToSet) {
 			
 			//A new intermediate index to stop at has been given
@@ -132,9 +96,20 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 				//Store backups in case we are too late for critical point
 				double totalDistanceBKP = this.totalDistance;
 				int criticalPointBKP = this.criticalPoint;
+				double positionToStopBKP = this.positionToStop;
 	
 				this.criticalPoint = criticalPointToSet;
 				this.totalDistance = computeDistance(0, criticalPointToSet);
+				
+				if (this.totalDistance < computeCurrentDistanceFromStart()) {
+					metaCSPLogger.warning("Ignored critical point (" + te.getComponent() + "): " + criticalPointToSet + " because stop distance (" + this.positionToStop +") < current distance (" + this.computeCurrentDistanceFromStart() + ")");
+					this.criticalPoint = criticalPointBKP;
+					this.totalDistance = totalDistanceBKP;
+					this.positionToStop = positionToStopBKP;
+				}
+				else {
+					metaCSPLogger.finest("Set critical point (" + te.getComponent() + "): " + criticalPointToSet + ", currently at point " + this.getRobotReport().getPathIndex() + ", distance " + this.computeCurrentDistanceFromStart() + ", will slow down at distance " + this.positionToStop);
+				}
 			}
 
 			//Critical point <= current position, ignore -- WHY??
@@ -161,27 +136,24 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 	public RobotReport getRobotReport() {
 		if (this.currentPose == null) return null;
 		if (!this.th.isAlive()) return new RobotReport(te.getRobotID(), traj.getPose()[0], -1, 0.0, 0.0, -1);
-		synchronized(state) {
-			Pose pose = null;
-			int currentPathIndex = -1;
-			double accumulatedDist = 0.0;
-			Pose[] poses = traj.getPose();
-			for (int i = 0; i < poses.length-1; i++) {
-				double deltaS = poses[i].distanceTo(poses[i+1]);
-				accumulatedDist += deltaS;
-				if (accumulatedDist > state.getPosition()) {
-					double ratio = 1.0-(accumulatedDist-state.getPosition())/deltaS;
-					pose = poses[i].interpolate(poses[i+1], ratio);
-					currentPathIndex = i;
-					break;
-				}
-			}
-			if (currentPathIndex == -1) {
-				currentPathIndex = poses.length-1;
-				pose = poses[currentPathIndex];
-			}
-			return new RobotReport(te.getRobotID(), pose, currentPathIndex, state.getVelocity(), state.getPosition(), this.criticalPoint);
-		}
+//		Pose pose = null;
+//		double accumulatedDist = 0.0;
+//		Pose[] poses = traj.getPose();
+//		for (int i = 0; i < poses.length-1; i++) {
+//			double deltaS = poses[i].distanceTo(poses[i+1]);
+//			accumulatedDist += deltaS;
+//			if (accumulatedDist > state.getPosition()) {
+//				double ratio = 1.0-(accumulatedDist-state.getPosition())/deltaS;
+//				pose = poses[i].interpolate(poses[i+1], ratio);
+//				currentPathIndex = i;
+//				break;
+//			}
+//		}
+//		if (currentPathIndex == -1) {
+//			currentPathIndex = poses.length-1;
+//			pose = poses[currentPathIndex];
+//		}
+		return new RobotReport(te.getRobotID(), this.currentPose, this.currentPathIndex, this.currentSpeed, this.computeCurrentDistanceFromStart(), this.criticalPoint);
 	}
 
 	public void delayIntegrationThread(int maxDelayInmillis) {
@@ -189,10 +161,38 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 	}
 	
 	protected void updatePedestrianState() {
-		if(this.elapsedTrackingTime < this.pedestrianTimeStamps.get(0).doubleValue()) { return; }
 		
+		// Time that has passed for the pedestrian is the tracking time that has elapsed minus the stoppageTime.
 		double timePassed = this.elapsedTrackingTime - this.stoppageTime;
 		
+		if(timePassed < this.pedestrianTraj.getTimeStamp(0)) { 
+			currentSpeed = 0.0;
+			return; 
+		}
+		
+		int index = 0;
+		while(timePassed > this.pedestrianTraj.getTimeStamp(index)) {
+			index++;
+			if(index == pedestrianTraj.size()) break;
+		}
+		
+		index = index - 1;
+		
+		this.currentPathIndex = index;
+		this.currentSpeed = this.pedestrianTraj.getSpeed(index);
+		
+		// Motion is over. 
+		if(index == this.pedestrianTraj.size()) { 
+			this.currentPose = this.pedestrianTraj.getPose(index);
+			return;
+		}
+		
+		// Interpolate the pose. TODO: Make use of the velocities in each direction as well
+		
+		double diffTime = timePassed - this.pedestrianTraj.getTimeStamp(index);
+		double deltaTime = this.pedestrianTraj.getTimeStamp(index + 1) - this.pedestrianTraj.getTimeStamp(index);
+		double ratio = diffTime / deltaTime;
+		this.currentPose = this.pedestrianTraj.getPose(index).interpolate(this.pedestrianTraj.getPose(index + 1), ratio);
 	}
 	
 	@Override
@@ -208,10 +208,10 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 			//End condition: passed the middle AND velocity < 0 AND no criticalPoint 			
 			boolean skipIntegration = false;
 			
-			if (state.getVelocity() < 0.0) {
+			if (computeCurrentDistanceFromStart() >= this.positionToStop && this.currentSpeed == 0.0) {
 				if (criticalPoint == -1 && !atCP) {
 					//set state to final position, just in case it didn't quite get there (it's certainly close enough)
-					state = new State(totalDistance, 0.0);
+					this.currentPose = this.pedestrianTraj.getPoses().get(this.pedestrianTraj.getPoses().size()-1);
 					onPositionUpdate();
 					break;
 				}
@@ -261,6 +261,11 @@ public abstract class TrajectoryEnvelopeTrackerPedestrian extends AbstractTrajec
 			catch (InterruptedException e) { e.printStackTrace(); }
 		}
 		metaCSPLogger.info("RK4 tracking thread terminates (Robot " + myRobotID + ", TrajectoryEnvelope " + myTEID + ")");
+	}
+
+	@Override
+	public long getCurrentTimeInMillis() {
+		return Calendar.getInstance().getTimeInMillis();
 	}
 
 }

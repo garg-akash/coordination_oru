@@ -3,26 +3,16 @@ package se.oru.coordination.coordination_oru.simulation2D;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
-import java.util.HashSet;
 
 import org.metacsp.multi.spatioTemporal.paths.Pose;
 import org.metacsp.multi.spatioTemporal.paths.PoseSteering;
-import org.metacsp.multi.spatioTemporal.paths.Trajectory;
 import org.metacsp.multi.spatioTemporal.paths.TrajectoryEnvelope;
-import org.metacsp.utility.UI.Callback;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.util.AffineTransformation;
-
-import geometry_msgs.Point;
 import se.oru.coordination.coordination_oru.AbstractTrajectoryEnvelopeTracker;
-import se.oru.coordination.coordination_oru.Dependency;
 import se.oru.coordination.coordination_oru.Mission;
 import se.oru.coordination.coordination_oru.TrackingCallback;
 import se.oru.coordination.coordination_oru.TrajectoryEnvelopeCoordinator;
-import se.oru.coordination.coordination_oru.motionplanning.AbstractMotionPlanner;
+
 
 public class TrajectoryEnvelopeCoordinatorSimulationWithPedestrians extends TrajectoryEnvelopeCoordinator {
 
@@ -31,7 +21,12 @@ public class TrajectoryEnvelopeCoordinatorSimulationWithPedestrians extends Traj
 	protected double MAX_ACCELERATION;
 	protected int trackingPeriodInMillis;
 	protected boolean useInternalCPs = true;
+	
+	protected HashMap<Integer, PedestrianTrajectory> pedestrianTrajectoryMap;
 
+	public void addPedestrianTrajectory(int robotID, PedestrianTrajectory traj) {
+		pedestrianTrajectoryMap.put(robotID, traj);
+	}
 	public int getTrackingPeriod() {
 		return trackingPeriodInMillis;
 	}
@@ -162,17 +157,22 @@ public class TrajectoryEnvelopeCoordinatorSimulationWithPedestrians extends Traj
 
 	@Override
 	public AbstractTrajectoryEnvelopeTracker getNewTracker(TrajectoryEnvelope te, TrackingCallback cb) {
+		
+		AbstractTrajectoryEnvelopeTracker ret = null;
 
-		TrajectoryEnvelopeTrackerRK4 ret = new TrajectoryEnvelopeTrackerRK4(te, trackingPeriodInMillis, TEMPORAL_RESOLUTION, MAX_VELOCITY, MAX_ACCELERATION, this, cb) {
+		// This needs to change later. For now all uncontrollable entities are pedestrians. 
+		if(this.pedestrianTrajectoryMap.containsKey(te.getRobotID()) && this.isUncontrollable(te.getRobotID()))  {
+			ret = new TrajectoryEnvelopeTrackerPedestrian(te, trackingPeriodInMillis, TEMPORAL_RESOLUTION, this, cb, this.pedestrianTrajectoryMap.get(te.getRobotID())); }
+		else {
+			ret = new TrajectoryEnvelopeTrackerRK4(te, trackingPeriodInMillis, TEMPORAL_RESOLUTION, MAX_VELOCITY, MAX_ACCELERATION, this, cb) {
 
-			//Method for measuring time in the trajectory envelope tracker
-			@Override
-			public long getCurrentTimeInMillis() {
-				return Calendar.getInstance().getTimeInMillis()-START_TIME;
-			}
-		};
-		//ret.setUseInternalCriticalPoints(this.useInternalCPs);
-		ret.setUseInternalCriticalPoints(false);
+				//Method for measuring time in the trajectory envelope tracker
+				@Override
+				public long getCurrentTimeInMillis() {
+					return Calendar.getInstance().getTimeInMillis()-START_TIME;
+				}
+			};
+		}
 		return ret;
 	}
 

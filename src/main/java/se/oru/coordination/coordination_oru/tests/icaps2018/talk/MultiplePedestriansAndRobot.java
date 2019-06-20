@@ -2,6 +2,7 @@ package se.oru.coordination.coordination_oru.tests.icaps2018.talk;
 
 import java.io.File;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Vector;
 
 import org.metacsp.multi.spatioTemporal.paths.PoseSteering;
@@ -14,7 +15,9 @@ import se.oru.coordination.coordination_oru.Mission;
 import se.oru.coordination.coordination_oru.RobotAtCriticalSection;
 import se.oru.coordination.coordination_oru.RobotReport;
 import se.oru.coordination.coordination_oru.demo.DemoDescription;
-import se.oru.coordination.coordination_oru.simulation2D.TrajectoryEnvelopeCoordinatorSimulation;
+import se.oru.coordination.coordination_oru.simulation2D.PedestrianForwardModel;
+import se.oru.coordination.coordination_oru.simulation2D.PedestrianTrajectory;
+import se.oru.coordination.coordination_oru.simulation2D.TrajectoryEnvelopeCoordinatorSimulationWithPedestrians;
 import se.oru.coordination.coordination_oru.util.BrowserVisualization;
 import se.oru.coordination.coordination_oru.util.JTSDrawingPanelVisualization;
 import se.oru.coordination.coordination_oru.util.Missions;
@@ -27,12 +30,13 @@ public class MultiplePedestriansAndRobot {
 
 		double MAX_ACCEL = 1.0;
 		double MAX_VEL = 1.0;
+		
 		//Instantiate a trajectory envelope coordinator.
 		//The TrajectoryEnvelopeCoordinatorSimulation implementation provides
 		// -- the factory method getNewTracker() which returns a trajectory envelope tracker
 		// -- the getCurrentTimeInMillis() method, which is used by the coordinator to keep time
 		//You still need to add one or more comparators to determine robot orderings thru critical sections (comparators are evaluated in the order in which they are added)
-		final TrajectoryEnvelopeCoordinatorSimulation tec = new TrajectoryEnvelopeCoordinatorSimulation(MAX_VEL,MAX_ACCEL);
+		final TrajectoryEnvelopeCoordinatorSimulationWithPedestrians tec = new TrajectoryEnvelopeCoordinatorSimulationWithPedestrians(MAX_VEL, MAX_ACCEL);
 		tec.addComparator(new Comparator<RobotAtCriticalSection> () {
 			@Override
 			public int compare(RobotAtCriticalSection o1, RobotAtCriticalSection o2) {
@@ -48,9 +52,6 @@ public class MultiplePedestriansAndRobot {
 				return (o2.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID()-o1.getTrajectoryEnvelopeTracker().getTrajectoryEnvelope().getRobotID());
 			}
 		});
-
-		String filename_prefix = "paths_pedsim/person";
-		int nums[] = {8, 32, 147, 148, 115, 33, 58, 80, 114, 99};
 		
 		// Pedestrian Footprints
 		Coordinate footprint1 = new Coordinate(-0.1,0.1);
@@ -67,28 +68,34 @@ public class MultiplePedestriansAndRobot {
 		//Need to setup infrastructure that maintains the representation
 		tec.setupSolver(0, 100000000);
 
+		String fileNamePrefix = "paths_pedsim/person";
+		int nums[] = {8, 32, 147, 148, 115, 33, 58, 80, 114, 99};
+		
 		//JTSDrawingPanelVisualization viz = new JTSDrawingPanelVisualization();
 		RVizVisualization viz = new RVizVisualization();
 		RVizVisualization.writeRVizConfigFile(nums);
 		//BrowserVisualization viz = new BrowserVisualization();
 		//viz.setInitialTransform(39, -1.8, 1.4);
 		tec.setVisualization(viz);
-		
-		tec.setUseInternalCriticalPoints(false);
 
 		for(int i = 0; i < nums.length; i++) {
 			
+			// Two robots. Others behave as pedestrians.
 			if (i != 1 && i != 3) {
 				tec.setFootprint(nums[i], footprint1, footprint2, footprint3, footprint4);
-				tec.addUncontrollableRobots(nums[i]);				
+				tec.addUncontrollableRobots(nums[i]);	
+				tec.setForwardModel(nums[i], new PedestrianForwardModel());
 			}
-			else tec.setFootprint(nums[i], f1, f2, f3, f4);
+			else {
+				tec.setFootprint(nums[i], f1, f2, f3, f4);
+				tec.setForwardModel(nums[i], new ConstantAccelerationForwardModel(MAX_ACCEL, MAX_VEL, tec.getTrackingPeriod(), tec.getTemporalResolution()));
+			}
 			
-			tec.setForwardModel(nums[i], new ConstantAccelerationForwardModel(MAX_ACCEL, MAX_VEL, tec.getTrackingPeriod(), tec.getTemporalResolution()));
-			
-			PoseSteering[] path1 = Missions.loadPathFromFile(filename_prefix + Integer.toString(nums[i]) + ".txt");
-			tec.placeRobot(nums[i], path1[0].getPose());
-			Mission m1 = new Mission(nums[i],path1);
+			//PoseSteering[] path1 = Missions.loadPathFromFile(filename_prefix + Integer.toString(nums[i]) + ".txt");
+			PedestrianTrajectory p1 = new PedestrianTrajectory(fileNamePrefix + Integer.toString(nums[i]) + ".txt");
+			tec.addPedestrianTrajectory(nums[i], p1);
+			tec.placeRobot(nums[i], p1.getPose(0));
+			Mission m1 = new Mission(nums[i], p1.getPoseSteeringAsArray());
 
 			//Place robots in their initial locations (looked up in the data file that was loaded above)
 			// -- creates a trajectory envelope for each location, representing the fact that the robot is parked
@@ -96,12 +103,10 @@ public class MultiplePedestriansAndRobot {
 			// -- each trajectory envelope is the footprint of the corresponding robot in that pose
 
 			tec.addMissions(m1);
-			tec.computeCriticalSections();
-			tec.startTrackingAddedMissions();
-
 			Thread.sleep(200);
 		}
 		
-		Missions.loadLocationAndPathData("paths_pedsim" + File.separator + "roadmap.txt");	
+		tec.computeCriticalSections();
+		tec.startTrackingAddedMissions();
 	}
 }
