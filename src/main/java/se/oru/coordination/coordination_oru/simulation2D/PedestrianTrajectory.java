@@ -106,12 +106,13 @@ public class PedestrianTrajectory {
 		this.speeds = new ArrayList<Double>();
 		this.timeStamps = new ArrayList<Double>();
 		this.dts = new ArrayList<Double>();
+		this.us = new ArrayList<Double>();
+		this.vs = new ArrayList<Double>();
 		try {
 			Scanner in = new Scanner(new FileReader(fileName));
 			while (in.hasNextLine()) {
-				String line = in.nextLine().trim();
-				if(line.length() == 5) {
-					String[] oneline = line.split(" |\t");
+				String[] oneline = in.nextLine().trim().split(" |\t");
+				if(oneline.length == 6) {
 					poses.add(new Pose(
 							new Double(oneline[0]).doubleValue(),
 							new Double(oneline[1]).doubleValue(),
@@ -123,7 +124,7 @@ public class PedestrianTrajectory {
 					vs.add(new Double(thisV));
 					
 					speeds.add(new Double(Math.sqrt(thisU*thisU + thisV*thisV)));
-					timeStamps.add(new Double(oneline[4]).doubleValue());
+					timeStamps.add(new Double(oneline[5]).doubleValue());
 				}
 				else {
 					ColorPrint.error("Error reading a line from " + fileName + ". Line did not contain 5 elements. Skipping line.");

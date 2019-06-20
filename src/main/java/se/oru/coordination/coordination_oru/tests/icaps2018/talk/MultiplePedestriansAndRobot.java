@@ -69,7 +69,7 @@ public class MultiplePedestriansAndRobot {
 		tec.setupSolver(0, 100000000);
 
 		String fileNamePrefix = "paths_pedsim/person";
-		int nums[] = {8, 32, 147, 148, 115, 33, 58, 80, 114, 99};
+		int nums[] = {112, 146, 160, 29, 30, 55, 5, 77, 97};
 		
 		//JTSDrawingPanelVisualization viz = new JTSDrawingPanelVisualization();
 		RVizVisualization viz = new RVizVisualization();
@@ -81,7 +81,7 @@ public class MultiplePedestriansAndRobot {
 		for(int i = 0; i < nums.length; i++) {
 			
 			// Two robots. Others behave as pedestrians.
-			if (i != 1 && i != 3) {
+			if (i != 1) {
 				tec.setFootprint(nums[i], footprint1, footprint2, footprint3, footprint4);
 				tec.addUncontrollableRobots(nums[i]);	
 				tec.setForwardModel(nums[i], new PedestrianForwardModel());

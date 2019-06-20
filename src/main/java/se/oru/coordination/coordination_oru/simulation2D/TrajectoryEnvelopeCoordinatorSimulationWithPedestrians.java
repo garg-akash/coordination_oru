@@ -22,7 +22,7 @@ public class TrajectoryEnvelopeCoordinatorSimulationWithPedestrians extends Traj
 	protected int trackingPeriodInMillis;
 	protected boolean useInternalCPs = true;
 	
-	protected HashMap<Integer, PedestrianTrajectory> pedestrianTrajectoryMap;
+	protected HashMap<Integer, PedestrianTrajectory> pedestrianTrajectoryMap = new HashMap<Integer, PedestrianTrajectory>();
 
 	public void addPedestrianTrajectory(int robotID, PedestrianTrajectory traj) {
 		pedestrianTrajectoryMap.put(robotID, traj);
