@@ -537,10 +537,22 @@ public class RVizVisualization implements FleetVisualization, NodeMain {
 		visualization_msgs.Marker marker = node.getTopicMessageFactory().newFromType(visualization_msgs.Marker._TYPE);
 		marker.getHeader().setFrameId(mapFrameID);
 		marker.getScale().setX(0.1f);
-		marker.getColor().setR(50f);
-		marker.getColor().setG(50.0f);
-		marker.getColor().setB(0.0f);
-		marker.getColor().setA(0.8f);
+		if(te.getRobotID == 2){
+			marker.getColor().setR(0.0f);
+			marker.getColor().setG(0.0f);
+			marker.getColor().setB(50.0f);
+			marker.getColor().setA(0.8f);	
+		}
+		else {
+			marker.getColor().setR(0.0f);
+			marker.getColor().setG(50.0f);
+			marker.getColor().setB(0.0f);
+			marker.getColor().setA(0.8f);
+		}
+		// marker.getColor().setR(50f);
+		// marker.getColor().setG(50.0f);
+		// marker.getColor().setB(0.0f);
+		// marker.getColor().setA(0.8f);
 		marker.setAction(visualization_msgs.Marker.ADD);
 		marker.setNs("current_envelope");
 		marker.setType(visualization_msgs.Marker.LINE_STRIP);
